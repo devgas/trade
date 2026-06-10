@@ -1,0 +1,29 @@
+exchange:
+  name: binance
+  market_type: spot
+data:
+  database_path: data/market_data.duckdb
+  symbol: BTC/USDT
+  timeframe: 1m
+  since: "2024-01-01T00:00:00Z"
+  limit_per_request: 1000
+model:
+  type: lightgbm
+  path: models/lightgbm_scalper.pkl
+  probability_threshold: 0.58
+target:
+  horizon: 15
+  take_profit: 0.002
+  stop_loss: 0.0015
+backtest:
+  initial_cash: 10000
+  position_size: 1000
+  fee_rate: 0.0004
+  slippage_rate: 0.0002
+  max_trades_per_day: 12
+llm:
+  enabled: true
+  host: http://localhost:11434
+  model: llama3.1
+alerts:
+  telegram_enabled: false

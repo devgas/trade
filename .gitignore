@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.streamlit/secrets.toml
+.env
+
+# Local generated research artifacts
+data/*.duckdb
+data/*.csv
+models/*.pkl
+models/*.joblib
+
+# OS/editor files
+.DS_Store
+.idea/
+.vscode/
