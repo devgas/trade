@@ -69,6 +69,14 @@ python -m src.backtest
 
 Backtest trades are written to `data/latest_backtest_trades.csv`.
 
+## Run Walk-Forward Validation
+
+```bash
+python -m src.walk_forward --train-size 1000 --test-size 300 --max-folds 3
+```
+
+Walk-forward results are written to `data/walk_forward_results.csv`. Each fold trains on an older window and backtests only the next future window.
+
 ## Run Dashboard
 
 ```bash

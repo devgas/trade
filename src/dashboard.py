@@ -14,6 +14,7 @@ from src.database import load_ohlcv
 from src.llm_explain import explain_signal
 from src.signal_engine import latest_signal
 from src.utils import PROJECT_ROOT, load_config
+from src.walk_forward import run_walk_forward
 
 from src.dashboard_helpers import split_candles_for_dashboard, stats_table
 
@@ -27,6 +28,7 @@ symbol = st.sidebar.text_input("Symbol", config["data"]["symbol"])
 timeframe = st.sidebar.text_input("Timeframe", config["data"]["timeframe"])
 run_llm = st.sidebar.checkbox("Ask Ollama for explanation", value=True)
 show_thresholds = st.sidebar.checkbox("Run threshold sweep", value=True)
+show_walk_forward = st.sidebar.checkbox("Run walk-forward validation", value=False)
 
 try:
     candles = load_ohlcv(config["data"]["database_path"], symbol, timeframe)
@@ -99,6 +101,25 @@ if show_thresholds:
         ),
         width="stretch",
     )
+
+
+if show_walk_forward:
+    st.subheader("Walk-forward validation")
+    st.caption("Trains a fresh model per fold and backtests only the next test window.")
+    walk_forward = run_walk_forward(candles, config, train_size=1000, test_size=300, max_folds=3)
+    if walk_forward.empty:
+        st.info("Not enough data for walk-forward validation with the current settings.")
+    else:
+        st.dataframe(walk_forward, width="stretch", hide_index=True)
+        st.plotly_chart(
+            px.bar(
+                walk_forward,
+                x="fold",
+                y=["total_return_pct", "max_drawdown_pct"],
+                barmode="group",
+            ),
+            width="stretch",
+        )
 
 st.subheader("Model split metadata")
 if metadata:
