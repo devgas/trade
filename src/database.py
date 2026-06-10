@@ -13,10 +13,10 @@ def db_path(path: str | Path) -> Path:
     return raw if raw.is_absolute() else PROJECT_ROOT / raw
 
 
-def connect(path: str | Path) -> duckdb.DuckDBPyConnection:
+def connect(path: str | Path, read_only: bool = False) -> duckdb.DuckDBPyConnection:
     resolved = db_path(path)
     resolved.parent.mkdir(parents=True, exist_ok=True)
-    return duckdb.connect(str(resolved))
+    return duckdb.connect(str(resolved), read_only=read_only)
 
 
 def save_ohlcv(
@@ -27,7 +27,7 @@ def save_ohlcv(
 ) -> None:
     table = normalize_table_name(symbol, timeframe)
     clean = candles.drop_duplicates("timestamp").sort_values("timestamp")
-    with connect(database_path) as con:
+    with connect(database_path, read_only=True) as con:
         con.execute(
             f"""
             CREATE TABLE IF NOT EXISTS {table} (
@@ -58,5 +58,5 @@ def save_ohlcv(
 
 def load_ohlcv(database_path: str | Path, symbol: str, timeframe: str) -> pd.DataFrame:
     table = normalize_table_name(symbol, timeframe)
-    with connect(database_path) as con:
+    with connect(database_path, read_only=True) as con:
         return con.execute(f"SELECT * FROM {table} ORDER BY timestamp").df()
