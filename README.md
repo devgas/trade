@@ -45,6 +45,20 @@ timeframe: 1m
 
 Do not add exchange secret keys. This is market-data and paper-backtest only.
 
+
+## Single CLI Launcher
+
+You can run the main workflows through one launcher:
+
+```bash
+python -m src.main collect --symbol BTC/USDT --timeframe 1m
+python -m src.main train --train-fraction 0.8
+python -m src.main backtest --optimize-thresholds
+python -m src.main walk-forward --train-size 1000 --test-size 300 --max-folds 3
+python -m src.main diagnostics
+python -m src.main dashboard
+```
+
 ## Download Data
 
 ```bash

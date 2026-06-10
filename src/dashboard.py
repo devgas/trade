@@ -20,6 +20,36 @@ from src.walk_forward import run_walk_forward
 from src.dashboard_helpers import split_candles_for_dashboard, stats_table
 
 
+@st.cache_data(show_spinner=False)
+def cached_load_ohlcv(database_path: str, symbol: str, timeframe: str):
+    return load_ohlcv(database_path, symbol, timeframe)
+
+
+@st.cache_resource(show_spinner=False)
+def cached_model_bundle(model_path: str):
+    return joblib.load(PROJECT_ROOT / Path(model_path))
+
+
+@st.cache_data(show_spinner=False)
+def cached_backtest(candles, config, _bundle):
+    return run_backtest(candles, _bundle, config)
+
+
+@st.cache_data(show_spinner=False)
+def cached_thresholds(candles, config, _bundle, start: float, stop: float, step: float):
+    return optimize_thresholds(candles, _bundle, config, threshold_range(start, stop, step))
+
+
+@st.cache_data(show_spinner=False)
+def cached_diagnostics(candles, config, _bundle):
+    return build_model_diagnostics(candles, _bundle, config)
+
+
+@st.cache_data(show_spinner=False)
+def cached_walk_forward(candles, config, train_size: int, test_size: int, max_folds: int):
+    return run_walk_forward(candles, config, train_size=train_size, test_size=test_size, max_folds=max_folds)
+
+
 st.set_page_config(page_title="AI Scalping Research", layout="wide")
 st.title("AI Scalping Research Dashboard")
 st.caption("Paper trading research only. No real order execution is implemented.")
@@ -31,9 +61,15 @@ run_llm = st.sidebar.checkbox("Ask Ollama for explanation", value=True)
 show_thresholds = st.sidebar.checkbox("Run threshold sweep", value=True)
 show_walk_forward = st.sidebar.checkbox("Run walk-forward validation", value=False)
 show_diagnostics = st.sidebar.checkbox("Show model diagnostics", value=True)
+threshold_min = st.sidebar.number_input("Threshold min", min_value=0.0, max_value=1.0, value=0.50, step=0.01)
+threshold_max = st.sidebar.number_input("Threshold max", min_value=0.0, max_value=1.0, value=0.80, step=0.01)
+threshold_step = st.sidebar.number_input("Threshold step", min_value=0.01, max_value=0.25, value=0.05, step=0.01)
+walk_train_size = st.sidebar.number_input("WF train rows", min_value=100, max_value=100000, value=1000, step=100)
+walk_test_size = st.sidebar.number_input("WF test rows", min_value=50, max_value=50000, value=300, step=50)
+walk_max_folds = st.sidebar.number_input("WF max folds", min_value=1, max_value=50, value=3, step=1)
 
 try:
-    candles = load_ohlcv(config["data"]["database_path"], symbol, timeframe)
+    candles = cached_load_ohlcv(config["data"]["database_path"], symbol, timeframe)
 except Exception as exc:
     st.error(f"No local candles found for {symbol} {timeframe}.")
     st.caption("Download that market/timeframe first, or switch back to the configured dataset.")
@@ -41,7 +77,7 @@ except Exception as exc:
     st.exception(exc)
     st.stop()
 
-bundle = joblib.load(PROJECT_ROOT / Path(config["model"]["path"]))
+bundle = cached_model_bundle(config["model"]["path"])
 metadata = bundle.get("metadata", {})
 signal = latest_signal(candles, config)
 
@@ -50,7 +86,7 @@ col1.metric("Latest signal", signal["signal"])
 col2.metric("Model probability", f"{signal['probability']:.2%}")
 col3.metric("Latest candle", str(signal["timestamp"]))
 
-result = run_backtest(candles, bundle, config)
+result = cached_backtest(candles, config, bundle)
 
 st.subheader("Backtest stats")
 stats_cols = st.columns(5)
@@ -68,8 +104,8 @@ quality_cols[3].metric("Max loss streak", int(result.stats["max_consecutive_loss
 train_candles, test_candles = split_candles_for_dashboard(candles, metadata)
 if not train_candles.empty and not test_candles.empty:
     st.subheader("In-sample vs out-of-sample")
-    train_result = run_backtest(train_candles, bundle, config)
-    test_result = run_backtest(test_candles, bundle, config)
+    train_result = cached_backtest(train_candles, config, bundle)
+    test_result = cached_backtest(test_candles, config, bundle)
     comparison = stats_table(
         [
             {
@@ -96,8 +132,8 @@ else:
 
 if show_thresholds:
     st.subheader("Threshold sweep")
-    thresholds = threshold_range(0.50, 0.80, 0.05)
-    optimization = optimize_thresholds(candles, bundle, config, thresholds)
+    thresholds = threshold_range(threshold_min, threshold_max, threshold_step)
+    optimization = cached_thresholds(candles, config, bundle, threshold_min, threshold_max, threshold_step)
     st.dataframe(optimization, width="stretch", hide_index=True)
     st.plotly_chart(
         px.line(
@@ -113,7 +149,7 @@ if show_thresholds:
 if show_walk_forward:
     st.subheader("Walk-forward validation")
     st.caption("Trains a fresh model per fold and backtests only the next test window.")
-    walk_forward = run_walk_forward(candles, config, train_size=1000, test_size=300, max_folds=3)
+    walk_forward = cached_walk_forward(candles, config, int(walk_train_size), int(walk_test_size), int(walk_max_folds))
     if walk_forward.empty:
         st.info("Not enough data for walk-forward validation with the current settings.")
     else:
@@ -131,7 +167,7 @@ if show_walk_forward:
 
 if show_diagnostics:
     st.subheader("Model diagnostics")
-    diagnostics = build_model_diagnostics(candles, bundle, config)
+    diagnostics = cached_diagnostics(candles, config, bundle)
     importance = diagnostics["feature_importance"]
     buckets = diagnostics["probability_buckets"]
     diag_col1, diag_col2 = st.columns(2)
