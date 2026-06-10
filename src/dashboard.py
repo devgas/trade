@@ -15,6 +15,8 @@ from src.llm_explain import explain_signal
 from src.signal_engine import latest_signal
 from src.utils import PROJECT_ROOT, load_config
 
+from src.dashboard_helpers import split_candles_for_dashboard, stats_table
+
 
 st.set_page_config(page_title="AI Scalping Research", layout="wide")
 st.title("AI Scalping Research Dashboard")
@@ -35,6 +37,8 @@ except Exception as exc:
     st.exception(exc)
     st.stop()
 
+bundle = joblib.load(PROJECT_ROOT / Path(config["model"]["path"]))
+metadata = bundle.get("metadata", {})
 signal = latest_signal(candles, config)
 
 col1, col2, col3 = st.columns(3)
@@ -42,7 +46,6 @@ col1.metric("Latest signal", signal["signal"])
 col2.metric("Model probability", f"{signal["probability"]:.2%}")
 col3.metric("Latest candle", str(signal["timestamp"]))
 
-bundle = joblib.load(PROJECT_ROOT / Path(config["model"]["path"]))
 result = run_backtest(candles, bundle, config)
 
 st.subheader("Backtest stats")
@@ -52,6 +55,29 @@ stats_cols[1].metric("Win rate", f"{result.stats["win_rate"]:.2%}")
 stats_cols[2].metric("Return", f"{result.stats["total_return_pct"]:.2f}%")
 stats_cols[3].metric("Profit factor", f"{result.stats["profit_factor"]:.2f}")
 stats_cols[4].metric("Max drawdown", f"{result.stats["max_drawdown_pct"]:.2f}%")
+
+train_candles, test_candles = split_candles_for_dashboard(candles, metadata)
+if not train_candles.empty and not test_candles.empty:
+    st.subheader("In-sample vs out-of-sample")
+    train_result = run_backtest(train_candles, bundle, config)
+    test_result = run_backtest(test_candles, bundle, config)
+    comparison = stats_table(
+        [
+            {
+                "sample": "In-sample",
+                "period": f"{metadata.get("train_start")} to {metadata.get("train_end")}",
+                **train_result.stats,
+            },
+            {
+                "sample": "Out-of-sample",
+                "period": f"{metadata.get("test_start")} to {metadata.get("test_end")}",
+                **test_result.stats,
+            },
+        ]
+    )
+    st.dataframe(comparison, width="stretch", hide_index=True)
+else:
+    st.info("Retrain the model to add train/test split metadata for in-sample vs out-of-sample stats.")
 
 st.subheader("Equity curve")
 if not result.equity_curve.empty:
@@ -73,6 +99,12 @@ if show_thresholds:
         ),
         width="stretch",
     )
+
+st.subheader("Model split metadata")
+if metadata:
+    st.json(metadata)
+else:
+    st.write("No split metadata found in the saved model.")
 
 st.subheader("LLM explanation")
 if run_llm:
