@@ -77,6 +77,14 @@ python -m src.walk_forward --train-size 1000 --test-size 300 --max-folds 3
 
 Walk-forward results are written to `data/walk_forward_results.csv`. Each fold trains on an older window and backtests only the next future window.
 
+## Generate Model Diagnostics
+
+```bash
+python -m src.model_diagnostics
+```
+
+Diagnostics are written to `data/feature_importance.csv` and `data/probability_buckets.csv`. The dashboard also shows these diagnostics when `Show model diagnostics` is enabled.
+
 ## Run Dashboard
 
 ```bash

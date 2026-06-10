@@ -12,6 +12,7 @@ import streamlit as st
 from src.backtest import optimize_thresholds, run_backtest, threshold_range
 from src.database import load_ohlcv
 from src.llm_explain import explain_signal
+from src.model_diagnostics import build_model_diagnostics
 from src.signal_engine import latest_signal
 from src.utils import PROJECT_ROOT, load_config
 from src.walk_forward import run_walk_forward
@@ -29,6 +30,7 @@ timeframe = st.sidebar.text_input("Timeframe", config["data"]["timeframe"])
 run_llm = st.sidebar.checkbox("Ask Ollama for explanation", value=True)
 show_thresholds = st.sidebar.checkbox("Run threshold sweep", value=True)
 show_walk_forward = st.sidebar.checkbox("Run walk-forward validation", value=False)
+show_diagnostics = st.sidebar.checkbox("Show model diagnostics", value=True)
 
 try:
     candles = load_ohlcv(config["data"]["database_path"], symbol, timeframe)
@@ -45,7 +47,7 @@ signal = latest_signal(candles, config)
 
 col1, col2, col3 = st.columns(3)
 col1.metric("Latest signal", signal["signal"])
-col2.metric("Model probability", f"{signal["probability"]:.2%}")
+col2.metric("Model probability", f"{signal['probability']:.2%}")
 col3.metric("Latest candle", str(signal["timestamp"]))
 
 result = run_backtest(candles, bundle, config)
@@ -53,10 +55,10 @@ result = run_backtest(candles, bundle, config)
 st.subheader("Backtest stats")
 stats_cols = st.columns(5)
 stats_cols[0].metric("Trades", int(result.stats["trades"]))
-stats_cols[1].metric("Win rate", f"{result.stats["win_rate"]:.2%}")
-stats_cols[2].metric("Return", f"{result.stats["total_return_pct"]:.2f}%")
-stats_cols[3].metric("Profit factor", f"{result.stats["profit_factor"]:.2f}")
-stats_cols[4].metric("Max drawdown", f"{result.stats["max_drawdown_pct"]:.2f}%")
+stats_cols[1].metric("Win rate", f"{result.stats['win_rate']:.2%}")
+stats_cols[2].metric("Return", f"{result.stats['total_return_pct']:.2f}%")
+stats_cols[3].metric("Profit factor", f"{result.stats['profit_factor']:.2f}")
+stats_cols[4].metric("Max drawdown", f"{result.stats['max_drawdown_pct']:.2f}%")
 
 train_candles, test_candles = split_candles_for_dashboard(candles, metadata)
 if not train_candles.empty and not test_candles.empty:
@@ -67,12 +69,12 @@ if not train_candles.empty and not test_candles.empty:
         [
             {
                 "sample": "In-sample",
-                "period": f"{metadata.get("train_start")} to {metadata.get("train_end")}",
+                "period": f"{metadata.get('train_start')} to {metadata.get('train_end')}",
                 **train_result.stats,
             },
             {
                 "sample": "Out-of-sample",
-                "period": f"{metadata.get("test_start")} to {metadata.get("test_end")}",
+                "period": f"{metadata.get('test_start')} to {metadata.get('test_end')}",
                 **test_result.stats,
             },
         ]
@@ -120,6 +122,30 @@ if show_walk_forward:
             ),
             width="stretch",
         )
+
+
+if show_diagnostics:
+    st.subheader("Model diagnostics")
+    diagnostics = build_model_diagnostics(candles, bundle, config)
+    importance = diagnostics["feature_importance"]
+    buckets = diagnostics["probability_buckets"]
+    diag_col1, diag_col2 = st.columns(2)
+    with diag_col1:
+        st.caption("Feature importance")
+        st.dataframe(importance, width="stretch", hide_index=True)
+        if not importance.empty:
+            st.plotly_chart(
+                px.bar(importance.head(12), x="importance", y="feature", orientation="h"),
+                width="stretch",
+            )
+    with diag_col2:
+        st.caption("Out-of-sample probability buckets")
+        st.dataframe(buckets, width="stretch", hide_index=True)
+        if not buckets.empty:
+            st.plotly_chart(
+                px.bar(buckets, x="bucket", y=["avg_probability", "target_rate"], barmode="group"),
+                width="stretch",
+            )
 
 st.subheader("Model split metadata")
 if metadata:
