@@ -15,5 +15,15 @@ def split_candles_for_dashboard(candles: pd.DataFrame, metadata: dict) -> tuple[
 
 def stats_table(rows: list[dict]) -> pd.DataFrame:
     return pd.DataFrame(rows)[
-        ["sample", "period", "trades", "win_rate", "total_return_pct", "profit_factor", "max_drawdown_pct"]
+        [
+            "sample",
+            "period",
+            "trades",
+            "win_rate",
+            "total_return_pct",
+            "profit_factor",
+            "max_drawdown_pct",
+            "expectancy",
+            "max_consecutive_losses",
+        ]
     ]

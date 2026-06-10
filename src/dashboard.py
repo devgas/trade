@@ -59,6 +59,11 @@ stats_cols[1].metric("Win rate", f"{result.stats['win_rate']:.2%}")
 stats_cols[2].metric("Return", f"{result.stats['total_return_pct']:.2f}%")
 stats_cols[3].metric("Profit factor", f"{result.stats['profit_factor']:.2f}")
 stats_cols[4].metric("Max drawdown", f"{result.stats['max_drawdown_pct']:.2f}%")
+quality_cols = st.columns(4)
+quality_cols[0].metric("Avg win", f"${result.stats['avg_win']:.2f}")
+quality_cols[1].metric("Avg loss", f"${result.stats['avg_loss']:.2f}")
+quality_cols[2].metric("Expectancy", f"${result.stats['expectancy']:.2f}")
+quality_cols[3].metric("Max loss streak", int(result.stats["max_consecutive_losses"]))
 
 train_candles, test_candles = split_candles_for_dashboard(candles, metadata)
 if not train_candles.empty and not test_candles.empty:

@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from src.backtest import calculate_max_drawdown_pct, optimize_thresholds, summarize
+from src.backtest import calculate_max_drawdown_pct, max_consecutive_losses, optimize_thresholds, summarize
 
 
 class FixedProbabilityModel:
@@ -26,6 +26,23 @@ def test_summarize_includes_max_drawdown_pct():
     stats = summarize(trades, initial_cash=100.0, final_cash=105.0)
 
     assert stats["max_drawdown_pct"] < 0
+
+
+def test_max_consecutive_losses_counts_longest_loss_streak():
+    trades = pd.DataFrame({"net_pnl": [1.0, -1.0, -2.0, 3.0, -1.0, -1.0, -1.0]})
+
+    assert max_consecutive_losses(trades) == 3
+
+
+def test_summarize_includes_trade_quality_metrics():
+    trades = pd.DataFrame({"net_pnl": [10.0, -4.0, -6.0, 5.0], "equity": [110.0, 106.0, 100.0, 105.0]})
+
+    stats = summarize(trades, initial_cash=100.0, final_cash=105.0)
+
+    assert stats["avg_win"] == 7.5
+    assert stats["avg_loss"] == -5.0
+    assert stats["expectancy"] == 1.25
+    assert stats["max_consecutive_losses"] == 2
 
 
 def test_optimize_thresholds_returns_one_row_per_threshold():

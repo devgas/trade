@@ -104,6 +104,20 @@ def calculate_max_drawdown_pct(equity_curve: pd.DataFrame) -> float:
     return float(drawdown.min())
 
 
+def max_consecutive_losses(trades: pd.DataFrame) -> int:
+    if trades.empty or "net_pnl" not in trades:
+        return 0
+    longest = 0
+    current = 0
+    for pnl in trades["net_pnl"]:
+        if pnl <= 0:
+            current += 1
+            longest = max(longest, current)
+        else:
+            current = 0
+    return int(longest)
+
+
 def summarize(
     trades: pd.DataFrame,
     initial_cash: float,
@@ -121,17 +135,27 @@ def summarize(
             "total_return_pct": 0.0,
             "profit_factor": 0.0,
             "max_drawdown_pct": max_drawdown_pct,
+            "avg_win": 0.0,
+            "avg_loss": 0.0,
+            "expectancy": 0.0,
+            "max_consecutive_losses": 0,
         }
     wins = trades[trades["net_pnl"] > 0]
     losses = trades[trades["net_pnl"] <= 0]
     gross_profit = wins["net_pnl"].sum()
     gross_loss = abs(losses["net_pnl"].sum())
+    avg_win = float(wins["net_pnl"].mean()) if not wins.empty else 0.0
+    avg_loss = float(losses["net_pnl"].mean()) if not losses.empty else 0.0
     return {
         "trades": float(len(trades)),
         "win_rate": float(len(wins) / len(trades)),
         "total_return_pct": float((final_cash / initial_cash - 1) * 100),
         "profit_factor": float(gross_profit / gross_loss) if gross_loss else float("inf"),
         "max_drawdown_pct": max_drawdown_pct,
+        "avg_win": avg_win,
+        "avg_loss": avg_loss,
+        "expectancy": float(trades["net_pnl"].mean()),
+        "max_consecutive_losses": max_consecutive_losses(trades),
     }
 
 
